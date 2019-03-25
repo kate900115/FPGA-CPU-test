@@ -32,6 +32,7 @@ unsigned int MEM_SEG_SIZE = 16;
 unsigned int AQ_ENTRY_SIZE = 16;
 int SEND_BUF_SIZE = 512;
 int RECV_BUF_SIZE = 512;
+int AQ_SIZE = 128;
 
 uint64_t interpAddr = 0x8;
 uint64_t FPGA_BASE = 0xc8000000;
@@ -94,17 +95,16 @@ int main(int argc, char *argv[])
 	}
 
 	volatile uint64_t* FPGA_config_addr = (uint64_t*) getAddrWithOffset(FPGA_config_base_virt_addr, 0x0);
-	//volatile uint64_t* FPGA_config_data = (uint64_t*) getAddrWithOffset(FPGA_config_base_virt_addr, 0x6);
-	//volatile uint64_t* FPGA_config_valid_signal = (uint64_t*) getAddrWithOffset(FPGA_config_base_virt_addr, 0x1);
 
 	printf("FPGA_config_addr = %p;\n", FPGA_config_addr);
-	//printf("FPGA_config_data = %p;\n", FPGA_config_data);
-	//printf("FPGA_config_valid_signal = %p;\n", FPGA_config_valid_signal);
+
+
+
+
 
 
 	// get the virtual address to access to the doorbell register on FPGA
 	uint64_t FPGA_doorbell_reg_phys_addr = get_doorbell_addr(3);
-
 
 	cpuaddr_t* FPGA_doorbell_user2kernel_parameter;
 	FPGA_doorbell_user2kernel_parameter =  (struct cpuaddr_t*)malloc(sizeof(struct cpuaddr_t));
@@ -119,8 +119,12 @@ int main(int argc, char *argv[])
 		fprintf(stderr, "%s():%s\n", __FUNCTION__, strerror(errno));
 	}
 
-
 	volatile uint64_t* FPGA_doorbell_reg = (uint64_t*) getAddrWithOffset(FPGA_doorbell_reg_virt_addr, 0);
+
+
+
+
+
 
 
 	// get the virtual address to access to AQ cursor addr on FPGA
@@ -135,6 +139,12 @@ int main(int argc, char *argv[])
 	if (FPGA_AQ_cursor_reg_virt_addr == MAP_FAILED){
 		fprintf(stderr, "%s():%s\n", __FUNCTION__, strerror(errno));
 	}
+
+
+
+
+
+
 
 	// configure send buffer address
 	// generate virtual addr of CPU(GPU) memory
@@ -172,11 +182,9 @@ int main(int argc, char *argv[])
 	printf("FPGA_config_addr = %p\n", FPGA_config_addr);
 
 	for (int i=0; i<MEM_SEG_SIZE; i++){
-		//*FPGA_config_addr = {thread_id, mem_seg_idx};
-		//FPGA_config_addr = 
-		*FPGA_config_addr = (kid<<10) + (i<<3) + function_code;
-	//	*FPGA_config_data = pa_sendBuf->paddr;
-	//	//*FPGA_config_valid_signal = 0;
+		FPGA_config_addr = (uint64_t*) getAddrWithOffset(FPGA_config_base_virt_addr, ((kid<<10) + (i<<3) + function_code));
+		printf("FPGA_config_addr = %p;\n", FPGA_config_addr);
+		*FPGA_config_addr = pa_sendBuf->paddr + i * SEND_BUF_SIZE;
 	}
 
 
@@ -186,7 +194,7 @@ int main(int argc, char *argv[])
 		fprintf(stderr, "%s():%s\n", __FUNCTION__, strerror(errno));
 	}
 		
-	printf("virtual recv buf addr: %p\n", va_recvBuf);
+	printf("recv buffer virtual address = %p\n", va_recvBuf);
 
 	cpuaddr_t* pa_recvBuf;
 	pa_recvBuf = (struct cpuaddr_t*)malloc(sizeof(struct cpuaddr_t));
@@ -202,20 +210,24 @@ int main(int argc, char *argv[])
 	printf("recv buffer physical address = %p\n", pa_recvBuf->paddr);
 	printf("FPGA haven't written the CPU memory: %lx\n", *(int*)va_recvBuf);
 
+
+
+
+
 	//set config_addr, config_data and valid signal
 	// to update receive buffer
 	// function code should be 1
-
-
 	kid = 3;
 	function_code = 1;
 	for (int i=0; i<MEM_SEG_SIZE; i++){
-		*FPGA_config_addr = (kid<<10) + (i<<3) + function_code;
-		//*FPGA_config_data = pa_recvBuf->paddr;
-		//*FPGA_config_valid_signal = 0;
+		FPGA_config_addr = (uint64_t*) getAddrWithOffset(FPGA_config_base_virt_addr, ((kid<<10) + (i<<3) + function_code));
+		printf("FPGA_config_addr = %p\n", FPGA_config_addr);
+		*FPGA_config_addr = pa_recvBuf->paddr + i * RECV_BUF_SIZE;
 	}
 
 	
+
+
 
 	// configure AQ address
 	void* va_AQ = mmap(0, 512, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
@@ -223,7 +235,7 @@ int main(int argc, char *argv[])
 		fprintf(stderr, "%s():%s\n", __FUNCTION__, strerror(errno));
 	}
 
-	printf("virtual AQ addr: %p\n", va_AQ);
+	printf("AQ virtual address = %p\n", va_AQ);
 
 	cpuaddr_t* pa_AQ;
 	pa_AQ = (struct cpuaddr_t*)malloc(sizeof(struct cpuaddr_t));
@@ -237,7 +249,6 @@ int main(int argc, char *argv[])
 	}
 
 	printf("AQ physical address = %p\n", pa_AQ->paddr);
-	printf("FPGA haven't written the CPU memory: %lx\n", *(int*)va_AQ);
 
 	//set config_addr, config_data and valid signal
 
@@ -247,9 +258,9 @@ int main(int argc, char *argv[])
 	function_code = 3;
 
 	for (int i=0; i<AQ_ENTRY_SIZE; i++){
-		*FPGA_config_addr = (kid<<10) + (i<<3) + function_code;
-		//*FPGA_config_data = pa_AQ->paddr;
-		//*FPGA_config_valid_signal = 0;
+		FPGA_config_addr = (uint64_t*)getAddrWithOffset(FPGA_config_base_virt_addr, ((kid<<10)+(i<<3)+function_code));
+		printf("FPGA_config_addr = %p\n", FPGA_config_addr);
+		*FPGA_config_addr = pa_AQ->paddr + i * AQ_SIZE;
 	}
 
 	// configure doorbell buffer on CPU(GPU)
@@ -259,7 +270,7 @@ int main(int argc, char *argv[])
 		fprintf(stderr, "%s():%s\n", __FUNCTION__, strerror(errno));
 	}
 	
-	printf("virtual doorbell buffer: %p\n", va_doorbellBuf);
+	printf("doorbell buffer virtual address = %p\n", va_doorbellBuf);
 
 	cpuaddr_t* pa_doorbellBuf;
 	pa_doorbellBuf = (struct cpuaddr_t*)malloc(sizeof(struct cpuaddr_t));
@@ -272,7 +283,7 @@ int main(int argc, char *argv[])
 		exit(-1);
 	}
 
-	printf("doorbell buf phys addr = %p\n", pa_doorbellBuf);
+	printf("doorbell buffer physical address = %p\n", pa_doorbellBuf);
 	printf("FPGA haven't written the CPU memory: %lx\n", *(int*)va_doorbellBuf);
 
 	//to update the address of doorbell buffer
@@ -280,9 +291,8 @@ int main(int argc, char *argv[])
 
 	kid = 3; 
 	function_code = 2;
-	*FPGA_config_addr = (kid<<10) + function_code ;
-	//*FPGA_config_data = pa_doorbellBuf->paddr;
-	//*FPGA_config_valid_signal = 0;
+	FPGA_config_addr = (uint64_t*) getAddrWithOffset(FPGA_config_base_virt_addr, (kid<<10)+function_code);
+	*FPGA_config_addr = pa_doorbellBuf->paddr;
 
 
 
@@ -291,16 +301,17 @@ int main(int argc, char *argv[])
 	// the function code should be 4
 	kid = 3; 
 	function_code = 4;
-	*FPGA_config_addr = (kid<<10) + function_code ;
-	//*FPGA_config_data = SEND_BUF_SIZE;
-	//*FPGA_config_valid_signal = 0;
+	FPGA_config_addr = (uint64_t*) getAddrWithOffset(FPGA_config_base_virt_addr, (kid<<10)+function_code);
+	*FPGA_config_addr = SEND_BUF_SIZE;
+
 
 	// configure recvBuf size on CPU(GPU)
+	// the function code should be 5
 	kid = 3;
 	function_code = 5;
-	*FPGA_config_addr = (kid<<10) + function_code ;
-	//*FPGA_config_data = RECV_BUF_SIZE;
-	//*FPGA_config_valid_signal = 0;
+	FPGA_config_addr = (uint64_t*) getAddrWithOffset(FPGA_config_base_virt_addr, (kid<<10)+function_code);
+	*FPGA_config_addr = RECV_BUF_SIZE;
+
 
 
 
