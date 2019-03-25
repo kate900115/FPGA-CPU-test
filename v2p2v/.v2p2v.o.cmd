@@ -1,0 +1,1 @@
+cmd_/home/v-yuxz/zyuxuan/GPU/v2p2v/v2p2v.o := ld -m elf_x86_64 -z max-page-size=0x200000   -r -o /home/v-yuxz/zyuxuan/GPU/v2p2v/v2p2v.o /home/v-yuxz/zyuxuan/GPU/v2p2v/v2p2vproc.o /home/v-yuxz/zyuxuan/GPU/v2p2v/ioctlrw.o /home/v-yuxz/zyuxuan/GPU/v2p2v/v2p2vdrv.o 

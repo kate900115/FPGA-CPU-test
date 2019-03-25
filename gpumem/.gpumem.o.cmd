@@ -1,0 +1,1 @@
+cmd_/home/v-yuxz/zyuxuan/GPU/gpumem/gpumem.o := ld -m elf_x86_64 -z max-page-size=0x200000   -r -o /home/v-yuxz/zyuxuan/GPU/gpumem/gpumem.o /home/v-yuxz/zyuxuan/GPU/gpumem/gpumemproc.o /home/v-yuxz/zyuxuan/GPU/gpumem/ioctlrw.o /home/v-yuxz/zyuxuan/GPU/gpumem/gpumemdrv.o 
