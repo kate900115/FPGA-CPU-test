@@ -57,26 +57,31 @@ uint64_t get_AQ_addr (uint64_t kid){
 
 void* getAddrWithOffset(void* addr, uint64_t usr_reg_addr){
 	char* tmp = (char*) addr;
-	//void* returnAddr = (void*)(tmp + (interpAddr<<20) + (usr_reg_addr<<3));
+//	void* returnAddr = (void*)(tmp + (interpAddr<<20) + (usr_reg_addr<<3));
 	void* returnAddr = (void*)(tmp + (usr_reg_addr<<3));
 
+	return returnAddr;
+}
+
+void* getDoorbellWithOffset(void* base_addr, uint64_t kid){
+	//char* tmp = (char*) base_addr;
+	//void* returnAddr = (void*)(tmp + (kid<<10));
+	void* returnAddr = base_addr + (kid<<10);
 	return returnAddr;
 }
 
 
 int main(int argc, char *argv[])
 {
+	// initialization
 	int res = -1;
-
 	int fd = open("/dev/v2p2v", O_RDWR, 0);
 	//int fd = open("/dev/"GPUMEM_DRIVER_NAME, O_RDWR, 0);
 	if (fd < 0) {
 		printf("Error open file %s\n", "/dev/v2p2v");
 		return -1;
 	}
-
 	long kid = 0b000000;
-	long function_code = 0b000;
 
 	// get the virtual address to access to FPGA's config registers
 	uint64_t FPGA_config_base_phys_addr = read_user_reg(0x0);
@@ -85,7 +90,7 @@ int main(int argc, char *argv[])
 	FPGA_config_user2kernel_parameter->paddr = FPGA_config_base_phys_addr;
 	res = ioctl(fd, IOCTL_P2V, FPGA_config_user2kernel_parameter); //1
 
-	printf("FPAG_config_base_phys_addr = 0x%ld\n", FPGA_config_base_phys_addr);
+	printf("@@@ [physical] FPAG_config_base_phys_addr = 0x%lx\n", FPGA_config_base_phys_addr);
 
 	void* FPGA_config_base_virt_addr = mmap(0, 1024*1024, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
 
@@ -96,7 +101,7 @@ int main(int argc, char *argv[])
 
 	volatile uint64_t* FPGA_config_addr = (uint64_t*) getAddrWithOffset(FPGA_config_base_virt_addr, 0x0);
 
-	printf("FPGA_config_addr = %p;\n", FPGA_config_addr);
+	printf("@@@ [virtual] FPGA_config_addr = %p\n", FPGA_config_addr);
 
 
 
@@ -105,6 +110,7 @@ int main(int argc, char *argv[])
 
 	// get the virtual address to access to the doorbell register on FPGA
 	uint64_t FPGA_doorbell_reg_phys_addr = get_doorbell_addr(3);
+	printf("@@@ [physical] doorbell_reg_phs_addr = 0x%lx\n", FPGA_doorbell_reg_phys_addr);
 
 	cpuaddr_t* FPGA_doorbell_user2kernel_parameter;
 	FPGA_doorbell_user2kernel_parameter =  (struct cpuaddr_t*)malloc(sizeof(struct cpuaddr_t));
@@ -113,7 +119,7 @@ int main(int argc, char *argv[])
 	res = ioctl(fd, IOCTL_P2V, FPGA_doorbell_user2kernel_parameter);//2
 
 
-	void* FPGA_doorbell_reg_virt_addr = mmap(0, 512, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+	void* FPGA_doorbell_reg_virt_addr = mmap(0, 512*512, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
 
 	if (FPGA_doorbell_reg_virt_addr == MAP_FAILED){
 		fprintf(stderr, "%s():%s\n", __FUNCTION__, strerror(errno));
@@ -154,7 +160,7 @@ int main(int argc, char *argv[])
 		fprintf(stderr, "%s():%s\n", __FUNCTION__, strerror(errno));
 	}
 
-	printf("virtual addr: %p\n", va_sendBuf);
+	printf("@@@ [virtual] va_sendBuf: %p\n", va_sendBuf);
 
 	cpuaddr_t *pa_sendBuf;
 	pa_sendBuf = (struct cpuaddr_t*)malloc(sizeof(struct cpuaddr_t));
@@ -177,7 +183,7 @@ int main(int argc, char *argv[])
 	// to update send buffer address
 	// function code should be 0;
 	kid = 3;
-	function_code = 0;
+	int function_code = 0;
 
 	printf("FPGA_config_addr = %p\n", FPGA_config_addr);
 
@@ -270,7 +276,7 @@ int main(int argc, char *argv[])
 		fprintf(stderr, "%s():%s\n", __FUNCTION__, strerror(errno));
 	}
 	
-	printf("doorbell buffer virtual address = %p\n", va_doorbellBuf);
+	printf("@@@ doorbell buffer virtual address = %p\n", va_doorbellBuf);
 
 	cpuaddr_t* pa_doorbellBuf;
 	pa_doorbellBuf = (struct cpuaddr_t*)malloc(sizeof(struct cpuaddr_t));
@@ -335,9 +341,10 @@ int main(int argc, char *argv[])
 	int mem_seg_idx = 0;
 	*doorbell_buf = (mem_seg_idx<<8) + kid;	
 
-	// (2) send the doorbell
 
-	*FPGA_doorbell_reg = 3;//kid
+	// (2) send the doorbell
+	FPGA_doorbell_reg = (uint64_t*)getDoorbellWithOffset(FPGA_doorbell_reg_virt_addr,3);// 3 is kid
+	*FPGA_doorbell_reg = 1;
 
 
 	munmap(FPGA_config_base_virt_addr, 512);
