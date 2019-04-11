@@ -56,16 +56,11 @@ uint64_t get_AQ_addr (uint64_t kid){
 
 
 void* getAddrWithOffset(void* addr, uint64_t usr_reg_addr){
-	char* tmp = (char*) addr;
-//	void* returnAddr = (void*)(tmp + (interpAddr<<20) + (usr_reg_addr<<3));
-	void* returnAddr = (void*)(tmp + (usr_reg_addr<<3));
-
+	void* returnAddr = addr + (usr_reg_addr<<3);
 	return returnAddr;
 }
 
 void* getDoorbellWithOffset(void* base_addr, uint64_t kid){
-	//char* tmp = (char*) base_addr;
-	//void* returnAddr = (void*)(tmp + (kid<<10));
 	void* returnAddr = base_addr + (kid<<10);
 	return returnAddr;
 }
@@ -173,8 +168,8 @@ int main(int argc, char *argv[])
 		exit(-1);
 	}
 
-	printf("send buffer physical address = %p\n", pa_sendBuf->paddr);	
-	printf("FPGA haven't written the CPU memory: %lx\n", *(int*)va_sendBuf);
+	printf("@@@ [physical] pa_sendBuf->paddr = %p\n", pa_sendBuf->paddr);	
+	printf("@@@ [virtual] va_sendBuf->vaddr = %lx\n", *(int*)va_sendBuf);
 
 
 	// send the physical address of send buffer to FPGA
@@ -189,8 +184,9 @@ int main(int argc, char *argv[])
 
 	for (int i=0; i<MEM_SEG_SIZE; i++){
 		FPGA_config_addr = (uint64_t*) getAddrWithOffset(FPGA_config_base_virt_addr, ((kid<<10) + (i<<3) + function_code));
-		printf("FPGA_config_addr = %p;\n", FPGA_config_addr);
+	//	printf("FPGA_config_addr = %p;\n", FPGA_config_addr);
 		*FPGA_config_addr = pa_sendBuf->paddr + i * SEND_BUF_SIZE;
+		printf("[physical] CPU_pa_sendBuf->addr = 0x%lx\n", pa_sendBuf->paddr + i*SEND_BUF_SIZE);
 	}
 
 
@@ -200,7 +196,7 @@ int main(int argc, char *argv[])
 		fprintf(stderr, "%s():%s\n", __FUNCTION__, strerror(errno));
 	}
 		
-	printf("recv buffer virtual address = %p\n", va_recvBuf);
+	printf("@@@ [virtual] va_recvBuf = %p\n", va_recvBuf);
 
 	cpuaddr_t* pa_recvBuf;
 	pa_recvBuf = (struct cpuaddr_t*)malloc(sizeof(struct cpuaddr_t));
@@ -213,7 +209,7 @@ int main(int argc, char *argv[])
 		exit(-1);
 	}
 
-	printf("recv buffer physical address = %p\n", pa_recvBuf->paddr);
+	printf("@@@ [physical] pa_recvBuf->paddr = %p\n", pa_recvBuf->paddr);
 	printf("FPGA haven't written the CPU memory: %lx\n", *(int*)va_recvBuf);
 
 
